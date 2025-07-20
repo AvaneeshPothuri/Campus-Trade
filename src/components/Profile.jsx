@@ -5,6 +5,7 @@ import Button from './UI/Button'
 
 export default function Profile({ user }) {
   const [soldItems, setSoldItems] = useState([])
+  const [auctionSales, setAuctionSales] = useState([])
   const [activeItems, setActiveItems] = useState([])
   const [myBids, setMyBids] = useState([])
   const [bidAuctions, setBidAuctions] = useState([])
@@ -55,6 +56,29 @@ export default function Profile({ user }) {
       .select('*, items(*)')
       .eq('buyer_username', user)
     setBuyRequests(buyReq || [])
+
+    // Fetch auctions sold by user that ended and had at least one bid
+    const { data: userAuctions } = await supabase
+      .from('auctions')
+      .select('*')
+      .eq('seller_username', user)
+      .eq('is_active', false)
+
+    const auctionIds = userAuctions.map(a => a.auction_id)
+
+    if (auctionIds.length > 0) {
+      const { data: auctionBids } = await supabase
+        .from('bids')
+        .select('auction_id')
+        .in('auction_id', auctionIds)
+
+      const auctionsWithBids = new Set(auctionBids.map(b => b.auction_id))
+
+      const soldAuctions = userAuctions.filter(a => auctionsWithBids.has(a.auction_id))
+      setAuctionSales(soldAuctions || [])
+    } else {
+      setAuctionSales([])
+    }
   }
 
   const getContactsForItem = (item_id) => {
@@ -75,15 +99,27 @@ export default function Profile({ user }) {
           {/* Sold Items */}
           <div className="mb-10">
             <h3 className="text-xl font-semibold mb-4 text-gray-700">Items Sold</h3>
-            {soldItems.length === 0 ? (
+
+            {soldItems.length === 0 && auctionSales.length === 0 ? (
               <p className="text-gray-500 italic">No items sold.</p>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Sold Items (Buy/Sell) */}
                 {soldItems.map(item => (
-                  <Card key={item.item_id}>
+                  <Card key={`item-${item.item_id}`}>
                     <h4 className="font-bold text-green-700 mb-2">{item.title}</h4>
                     {item.image_url && <img src={item.image_url} alt={item.title} className="w-full h-40 object-cover rounded" />}
                     <p className="text-gray-700 mt-2">Price: ₹{item.price}</p>
+                  </Card>
+                ))}
+
+                {/* Auction Sales */}
+                {auctionSales.map(auction => (
+                  <Card key={`auction-${auction.auction_id}`}>
+                    <h4 className="font-bold text-green-700 mb-2">{auction.title}</h4>
+                    {auction.image_url && <img src={auction.image_url} alt={auction.title} className="w-full h-40 object-cover rounded" />}
+                    <p className="text-gray-700 mt-2">Sold For: ₹{auction.current_price}</p>
+                    <p className="text-xs text-gray-500">Auction Ended: {new Date(auction.end_time).toLocaleString()}</p>
                   </Card>
                 ))}
               </div>
