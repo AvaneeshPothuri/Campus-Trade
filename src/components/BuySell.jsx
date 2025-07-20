@@ -3,7 +3,6 @@ import { supabase } from '../supabaseClient'
 import Card from './UI/Card'
 import Button from './UI/Button'
 import Input from './UI/Input'
-import ContactModal from './ContactModal'
 
 export default function BuySell({ user }) {
   const [items, setItems] = useState([])
@@ -11,26 +10,6 @@ export default function BuySell({ user }) {
   const [description, setDescription] = useState('')
   const [price, setPrice] = useState('')
   const [imageURL, setImageURL] = useState('')
-  const [selectedItem, setSelectedItem] = useState(null)
-  const [showModal, setShowModal] = useState(false)
-
-  const handleContactSeller = (item) => {
-    setSelectedItem(item)
-    setShowModal(true)
-  }
-
-  const sendContactRequest = async ({ phone, facebook }) => {
-    await supabase.from('contact_requests').insert([{
-      item_id: selectedItem.item_id,
-      seller_username: selectedItem.seller_username,
-      buyer_username: user,
-      phone_number: phone,
-      facebook_username: facebook
-    }])
-
-    alert('Contact info sent to seller!')
-    setShowModal(false)
-  }
 
   const fetchItems = async () => {
     const { data } = await supabase
@@ -82,6 +61,40 @@ export default function BuySell({ user }) {
       alert('Failed to mark as sold')
     } else {
       fetchItems()
+    }
+  }
+
+  const handleContactSeller = async (item) => {
+    // Fetch the buyer's (current user's) contact info
+    const { data: userData, error } = await supabase
+      .from('users')
+      .select('phone_number, facebook_username')
+      .eq('username', user)
+      .single()
+
+    if (error || !userData) {
+      alert('Could not fetch your contact info.')
+      return
+    }
+
+    const { phone_number, facebook_username } = userData
+
+    if (!phone_number && !facebook_username) {
+      alert('You need to have at least a phone number or Facebook username in your profile.')
+      return
+    }
+
+    // Send contact request
+    const { error: insertError } = await supabase.from('contact_requests').insert([{
+      item_id: item.item_id,
+      seller_username: item.seller_username,
+      buyer_username: user
+    }])
+
+    if (insertError) {
+      alert('Failed to send contact request.')
+    } else {
+      alert('Your contact info was sent to the seller!')
     }
   }
 
@@ -148,12 +161,6 @@ export default function BuySell({ user }) {
           </div>
         )}
       </div>
-
-      <ContactModal
-        show={showModal}
-        onClose={() => setShowModal(false)}
-        onSubmit={sendContactRequest}
-      />
     </div>
   )
 }
