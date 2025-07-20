@@ -67,4 +67,4 @@ public/
 
 ## Live Demo
 
-[Campus Trade Live Demo]([https://campus-trade-khaki.vercel.app/])
+[Campus Trade Live Demo](https://campus-trade-khaki.vercel.app/)
