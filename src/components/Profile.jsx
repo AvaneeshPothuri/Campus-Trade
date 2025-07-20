@@ -7,6 +7,8 @@ export default function Profile({ user }) {
   const [soldItems, setSoldItems] = useState([])
   const [auctionSales, setAuctionSales] = useState([])
   const [activeItems, setActiveItems] = useState([])
+  const [activeAuctions, setActiveAuctions] = useState([])
+  const [pastAuctions, setPastAuctions] = useState([])
   const [myBids, setMyBids] = useState([])
   const [bidAuctions, setBidAuctions] = useState([])
   const [contactRequests, setContactRequests] = useState([])
@@ -57,14 +59,17 @@ export default function Profile({ user }) {
       .eq('buyer_username', user)
     setBuyRequests(buyReq || [])
 
-    // Fetch auctions sold by user that ended and had at least one bid
-    const { data: userAuctions } = await supabase
+    // Auctions you've posted
+    const { data: allAuctions } = await supabase
       .from('auctions')
       .select('*')
       .eq('seller_username', user)
-      .eq('is_active', false)
 
-    const auctionIds = userAuctions.map(a => a.auction_id)
+    setActiveAuctions(allAuctions.filter(a => a.is_active) || [])
+    setPastAuctions(allAuctions.filter(a => !a.is_active) || [])
+
+    // Auctions Sold by user with at least one bid
+    const auctionIds = allAuctions.filter(a => !a.is_active).map(a => a.auction_id)
 
     if (auctionIds.length > 0) {
       const { data: auctionBids } = await supabase
@@ -74,7 +79,7 @@ export default function Profile({ user }) {
 
       const auctionsWithBids = new Set(auctionBids.map(b => b.auction_id))
 
-      const soldAuctions = userAuctions.filter(a => auctionsWithBids.has(a.auction_id))
+      const soldAuctions = allAuctions.filter(a => !a.is_active && auctionsWithBids.has(a.auction_id))
       setAuctionSales(soldAuctions || [])
     } else {
       setAuctionSales([])
@@ -98,13 +103,12 @@ export default function Profile({ user }) {
 
           {/* Sold Items */}
           <div className="mb-10">
-            <h3 className="text-xl font-semibold mb-4 text-gray-700">Items Sold</h3>
+            <h3 className="text-xl font-semibold mb-4 text-gray-700">Items & Auctions Sold</h3>
 
             {soldItems.length === 0 && auctionSales.length === 0 ? (
-              <p className="text-gray-500 italic">No items sold.</p>
+              <p className="text-gray-500 italic">No items or auctions sold.</p>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Sold Items (Buy/Sell) */}
                 {soldItems.map(item => (
                   <Card key={`item-${item.item_id}`}>
                     <h4 className="font-bold text-green-700 mb-2">{item.title}</h4>
@@ -113,7 +117,6 @@ export default function Profile({ user }) {
                   </Card>
                 ))}
 
-                {/* Auction Sales */}
                 {auctionSales.map(auction => (
                   <Card key={`auction-${auction.auction_id}`}>
                     <h4 className="font-bold text-green-700 mb-2">{auction.title}</h4>
@@ -129,7 +132,7 @@ export default function Profile({ user }) {
           {/* Active Listings */}
           <div className="mb-10">
             <h3 className="text-xl font-semibold mb-4 text-gray-700">Active Listings (Your Posts)</h3>
-            {activeItems.length === 0 ? (
+            {activeItems.length === 0 && activeAuctions.length === 0 ? (
               <p className="text-gray-500 italic">No active listings.</p>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -193,11 +196,43 @@ export default function Profile({ user }) {
                     </div>
                   </Card>
                 ))}
+
+                {activeAuctions.map(auction => (
+                  <Card key={auction.auction_id}>
+                    <h4 className="font-bold text-purple-700 mb-2">{auction.title}</h4>
+                    {auction.image_url && (
+                      <img src={auction.image_url} alt={auction.title} className="w-full h-40 object-cover rounded" />
+                    )}
+                    <p className="text-gray-700 mt-2">Current Price: ₹{auction.current_price}</p>
+                    <p className="text-xs text-gray-500">Ends at: {new Date(auction.end_time).toLocaleString()}</p>
+                  </Card>
+                ))}
               </div>
             )}
           </div>
 
-          {/* Auctions Bid On */}
+          {/* Past Auctions History */}
+          <div className="mb-10">
+            <h3 className="text-xl font-semibold mb-4 text-gray-700">Your Past Auctions</h3>
+            {pastAuctions.length === 0 ? (
+              <p className="text-gray-500 italic">No past auctions.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {pastAuctions.map(auction => (
+                  <Card key={auction.auction_id}>
+                    <h4 className="font-bold text-gray-700 mb-2">{auction.title}</h4>
+                    {auction.image_url && (
+                      <img src={auction.image_url} alt={auction.title} className="w-full h-40 object-cover rounded" />
+                    )}
+                    <p className="text-gray-700 mt-2">Final Price: ₹{auction.current_price}</p>
+                    <p className="text-xs text-gray-500">Ended: {new Date(auction.end_time).toLocaleString()}</p>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Auctions You've Bid On */}
           <div className="mb-10">
             <h3 className="text-xl font-semibold mb-4 text-gray-700">Auctions You've Bid On</h3>
             {bidAuctions.length === 0 ? (
@@ -231,6 +266,8 @@ export default function Profile({ user }) {
                     fetchHistory()
                   }
 
+                  const isActive = auction.is_active
+
                   return (
                     <Card key={auction.auction_id}>
                       <h4 className="font-bold text-yellow-700 mb-2">{auction.title}</h4>
@@ -239,21 +276,34 @@ export default function Profile({ user }) {
                       <p className="text-sm text-gray-500">Your Highest Bid: ₹{userBid}</p>
                       <p className="text-xs text-gray-500 mt-1">Ends at: {new Date(auction.end_time).toLocaleString()}</p>
 
-                      {auction.current_price > userBid ? (
-                        <div className="mt-3">
-                          <input
-                            type="number"
-                            min={auction.current_price + 1}
-                            value={currentInput}
-                            onChange={e => handleBidChange(Number(e.target.value))}
-                            className="p-2 border rounded w-full mb-2"
-                          />
-                          <Button color="yellow" onClick={handlePlaceBid}>
-                            Place New Bid
-                          </Button>
-                        </div>
+                      {isActive ? (
+                        <>
+                          {auction.current_price > userBid ? (
+                            <div className="mt-3">
+                              <p className="text-red-600 font-semibold mb-2">You're outbid!</p>
+                              <input
+                                type="number"
+                                min={auction.current_price + 1}
+                                value={currentInput}
+                                onChange={e => handleBidChange(Number(e.target.value))}
+                                className="p-2 border rounded w-full mb-2"
+                              />
+                              <Button color="yellow" onClick={handlePlaceBid}>
+                                Place New Bid
+                              </Button>
+                            </div>
+                          ) : (
+                            <p className="text-green-600 font-semibold mt-3">You're currently the highest bidder</p>
+                          )}
+                        </>
                       ) : (
-                        <p className="text-green-600 font-semibold mt-3">You're the highest bidder</p>
+                        <p className="mt-3 font-semibold">
+                          {auction.current_price === userBid ? (
+                            <span className="text-green-600">Auction ended: You WON!</span>
+                          ) : (
+                            <span className="text-red-600">Auction ended: You LOST</span>
+                          )}
+                        </p>
                       )}
                     </Card>
                   )
