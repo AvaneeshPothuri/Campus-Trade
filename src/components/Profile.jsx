@@ -10,7 +10,7 @@ export default function Profile({ user }) {
   const [bidAuctions, setBidAuctions] = useState([])
   const [contactRequests, setContactRequests] = useState([])
   const [buyRequests, setBuyRequests] = useState([])
-  const [bidInputs, setBidInputs] = useState({})  // NEW: Track bid amounts per auction
+  const [bidInputs, setBidInputs] = useState({})
 
   useEffect(() => {
     fetchHistory()
@@ -46,7 +46,7 @@ export default function Profile({ user }) {
 
     const { data: contacts } = await supabase
       .from('contact_requests')
-      .select('*')
+      .select('*, buyer:buyer_username(phone_number, facebook_username)')
       .eq('seller_username', user)
     setContactRequests(contacts || [])
 
@@ -112,7 +112,9 @@ export default function Profile({ user }) {
                       <ul className="text-sm mt-1">
                         {getContactsForItem(item.item_id).map(req => (
                           <li key={req.request_id} className="p-1 border rounded bg-white shadow-sm mb-1">
-                            {req.buyer_username} - {req.phone_number || req.facebook_username}
+                            {req.buyer_username}
+                            {req.buyer?.phone_number ? ` - ${req.buyer.phone_number}` : ''}
+                            {req.buyer?.facebook_username ? ` - ${req.buyer.facebook_username}` : ''}
                           </li>
                         ))}
                       </ul>
