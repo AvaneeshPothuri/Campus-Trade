@@ -10,6 +10,7 @@ export default function BuySell({ user }) {
   const [description, setDescription] = useState('')
   const [price, setPrice] = useState('')
   const [imageURL, setImageURL] = useState('')
+  const [sentRequests, setSentRequests] = useState([])
 
   const fetchItems = async () => {
     const { data } = await supabase
@@ -19,6 +20,14 @@ export default function BuySell({ user }) {
       .order('created_at', { ascending: false })
 
     setItems(data || [])
+
+    // Fetch sent contact requests for the current user
+    const { data: requests } = await supabase
+      .from('contact_requests')
+      .select('item_id')
+      .eq('buyer_username', user)
+
+    setSentRequests(requests.map(r => r.item_id))
   }
 
   useEffect(() => {
@@ -95,6 +104,7 @@ export default function BuySell({ user }) {
       alert('Failed to send contact request.')
     } else {
       alert('Your contact info was sent to the seller!')
+      setSentRequests(prev => [...prev, item.item_id])
     }
   }
 
@@ -154,7 +164,11 @@ export default function BuySell({ user }) {
                 {item.seller_username === user ? (
                   <Button color="red" onClick={() => markAsSold(item.item_id)}>Mark as Sold</Button>
                 ) : (
-                  <Button color="blue" onClick={() => handleContactSeller(item)}>Contact Seller</Button>
+                  sentRequests.includes(item.item_id) ? (
+                    <p className="text-green-600 font-medium">Contact details sent already</p>
+                  ) : (
+                    <Button color="blue" onClick={() => handleContactSeller(item)}>Contact Seller</Button>
+                  )
                 )}
               </Card>
             ))}
